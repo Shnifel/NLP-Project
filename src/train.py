@@ -7,7 +7,7 @@ from transformers import AutoTokenizer
 from transformers import AutoModelForSequenceClassification, Trainer, TrainingArguments
 from sklearn.preprocessing import LabelEncoder
 from src.data_utils import construct_data_loaders
-from src.utils import compute_metrics
+from src.evaluate_utils import compute_metrics
 
 
 def train_model(model, train_dataset, eval_dataset, batch_size, num_epochs = 3):
