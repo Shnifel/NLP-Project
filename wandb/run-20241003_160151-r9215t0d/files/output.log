@@ -1,0 +1,41 @@
+
+
+
+
+
+
+
+
+
+ 33%|███████████████████████████████████████▋                                                                               | 9/27 [00:28<00:56,  3.13s/it]C:\Users\Muhammad Sahal\AppData\Local\Programs\Python\Python311\Lib\site-packages\sklearn\metrics\_classification.py:1471: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 due to no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, msg_start, len(result))                                                                               | 0/1 [00:00<?, ?it/s]
+ 33%|███████████████████████████████████████▋                                                                               | 9/27 [00:29<00:56,  3.13s/it]
+(10, 2)
+
+
+
+
+
+
+
+
+
+ 67%|██████████████████████████████████████████████████████████████████████████████▋                                       | 18/27 [00:57<00:28,  3.13s/it]
+(10, 2)
+ 67%|██████████████████████████████████████████████████████████████████████████████▋                                       | 18/27 [00:57<00:28,  3.13s/it]C:\Users\Muhammad Sahal\AppData\Local\Programs\Python\Python311\Lib\site-packages\sklearn\metrics\_classification.py:1471: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 due to no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, msg_start, len(result))                                                                               | 0/1 [00:00<?, ?it/s]
+
+
+
+
+
+
+
+
+
+100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 27/27 [01:25<00:00,  3.17s/it]
+(10, 2)
+100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 27/27 [01:25<00:00,  3.17s/it]C:\Users\Muhammad Sahal\AppData\Local\Programs\Python\Python311\Lib\site-packages\sklearn\metrics\_classification.py:1471: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 due to no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, msg_start, len(result))                                                                               | 0/1 [00:00<?, ?it/s]
+100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 27/27 [01:29<00:00,  3.30s/it]
+{'train_runtime': 92.9505, 'train_samples_per_second': 2.905, 'train_steps_per_second': 0.29, 'train_loss': 0.5157420193707501, 'epoch': 3.0}
