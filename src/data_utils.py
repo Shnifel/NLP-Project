@@ -12,7 +12,7 @@ def construct_data_loaders(data_path):
     df['category_encoded'] = df['category'].apply(lambda x: 1 if x == "uchumi" else 0)
 
     # test on a small subset of data first ti test the pipeline
-    sampled_df = df.sample(n=100, random_state=42) 
+    sampled_df = df.sample(n=10000, random_state=42) 
     sampled_dataset = Dataset.from_pandas(sampled_df[['content', 'category_encoded']])
     # dataset = Dataset.from_pandas(df[['content', 'category_encoded']])
 
