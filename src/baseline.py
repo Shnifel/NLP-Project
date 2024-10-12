@@ -25,7 +25,8 @@ class NewsClassificationModel:
             # Load the base model
             self.model = AutoModelForSequenceClassification.from_pretrained(
                 peft_config.base_model_name_or_path, 
-                num_labels=2
+                num_labels=2,
+                ignore_mismatched_sizes = True
             )
 
             print("HERE")
@@ -33,7 +34,7 @@ class NewsClassificationModel:
             self.model = PeftModel.from_pretrained(self.model, checkpoint_path)
         else:
             # Load the base model
-            self.model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2)
+            self.model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2, ignore_mismatched_sizes = True)
             # Apply LoRA if specified
             if use_lora:
                 config = LoraConfig(
@@ -47,8 +48,11 @@ class NewsClassificationModel:
         
         # Tokenize text
         self.train_dataset = tokenize_text(train_dataset, self.tokenizer)
+        print(self.train_dataset[0])
         self.val_dataset = tokenize_text(val_dataset, self.tokenizer)
         self.test_dataset = tokenize_text(test_dataset, self.tokenizer)
+        print(self.test_dataset[0])
+        print(self.model)
         
         self.save_path = save_path
 
@@ -61,6 +65,7 @@ class NewsClassificationModel:
             warmup_steps=100,
             weight_decay=0.01,
             logging_dir='./logs',
+            logging_steps = 30,
             evaluation_strategy="epoch",
         )
         trainer = Trainer(
@@ -136,7 +141,7 @@ class NewsClassificationModel:
         # For selected indices, visualize attention and highlight relevant text
         for idx in selected_indices:
             # Get input features
-            sample = self.test_dataset[idx]
+            sample = self.train_dataset[idx]
 
             # Convert to tensors and add batch dimension
             input_ids = torch.tensor(sample['input_ids'], dtype=torch.long).unsqueeze(0).to(self.model.device)

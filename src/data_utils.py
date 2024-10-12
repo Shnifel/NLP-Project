@@ -10,19 +10,18 @@ def train_valid_test_split(dataset: Dataset):
     return train_test['train'], val_test['train'], val_test['test']
 
 def preprocess_amharic_news():
-    dataset = load_dataset("rasyosef/amharic-news-category-classification")
-    train_split = dataset['train']
-    df = train_split.to_pandas()
-    
-    df['article'] = df['article'].astype(str).str.strip()
-    df['label'] = df['label'].astype(str).str.strip()
-    df['category_encoded'] = df['label'].apply(lambda x: 1 if x == '2' else 0)
+    dataset = load_dataset("masakhane/masakhanews", "tir")
 
-    dataset = Dataset.from_pandas(df[['article', 'category_encoded']])
-    dataset = dataset.rename_column('article', 'text')
-    dataset = dataset.rename_column('category_encoded', 'label')
+    def binarize_column(data):
+        data['label'] = 1 if data['label'] == 2 else 0 # Sports is 5
+        return data
 
-    return train_valid_test_split(dataset)
+    # Apply the binarization using map
+    train_data = dataset['train'].map(binarize_column)
+    val_data = dataset['validation'].map(binarize_column)
+    test_data = dataset['test'].map(binarize_column)
+
+    return train_data, val_data, test_data
 
 def tokenize_text(dataset, tokenizer):
     
