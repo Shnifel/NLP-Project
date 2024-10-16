@@ -2,7 +2,7 @@ from src.data_utils import tokenize_text
 from transformers import AutoTokenizer
 from transformers import AutoModelForSequenceClassification, Trainer, TrainingArguments, EvalPrediction
 from peft import LoraConfig, TaskType, get_peft_model
-from peft.peft_model import PeftModel
+from peft.peft_model import PeftModel, PeftModelForSequenceClassification
 from src.evaluate_utils import compute_metrics
 import os
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, cohen_kappa_score
@@ -12,8 +12,8 @@ import torch
 import numpy as np
 
 class NewsClassificationModel:
-    def __init__(self, model_name, tokenizer_name, train_dataset, val_dataset, test_dataset, 
-                 use_lora = True, save_path = "./baseline", checkpoint_path = None):
+    def __init__(self, model_name = None, tokenizer_name = None, train_dataset = None, val_dataset = None, test_dataset = None, 
+                 use_lora = True, save_path = "./baseline", checkpoint_path = None, tokenize = True, n_labels = 2):
 
         # Model and tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
@@ -25,34 +25,38 @@ class NewsClassificationModel:
             # Load the base model
             self.model = AutoModelForSequenceClassification.from_pretrained(
                 peft_config.base_model_name_or_path, 
-                num_labels=2,
+                num_labels=n_labels,
                 ignore_mismatched_sizes = True
             )
 
             print("HERE")
             # Load the model with LoRA weights
-            self.model = PeftModel.from_pretrained(self.model, checkpoint_path)
+            self.model = PeftModelForSequenceClassification.from_pretrained(self.model, checkpoint_path, strict= False, n_labels=2,
+                                                                            ignore_mismatched_sizes = True)
         else:
             # Load the base model
-            self.model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2, ignore_mismatched_sizes = True)
-            # Apply LoRA if specified
-            if use_lora:
-                config = LoraConfig(
-                    task_type=TaskType.SEQ_CLS,
-                    r=8,
-                    lora_alpha=32,
-                    target_modules=["query", "value"],
-                    lora_dropout=0.01
-                )
-                self.model = get_peft_model(self.model, config, "default")
+            self.model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=n_labels, ignore_mismatched_sizes = True)
+        # Apply LoRA if specified
+        if use_lora:
+            config = LoraConfig(
+                task_type=TaskType.SEQ_CLS,
+                r=8,
+                auto_mapping='auto',
+                lora_alpha=32,
+                target_modules=["query", "value"],
+                lora_dropout=0.01
+            )
+            self.model = get_peft_model(self.model, config, "default")
         
         # Tokenize text
-        self.train_dataset = tokenize_text(train_dataset, self.tokenizer)
-        print(self.train_dataset[0])
-        self.val_dataset = tokenize_text(val_dataset, self.tokenizer)
-        self.test_dataset = tokenize_text(test_dataset, self.tokenizer)
-        print(self.test_dataset[0])
-        print(self.model)
+        if tokenize:
+            self.train_dataset = tokenize_text(train_dataset, self.tokenizer)
+            self.val_dataset = tokenize_text(val_dataset, self.tokenizer)
+            self.test_dataset = tokenize_text(test_dataset, self.tokenizer)
+        else:
+            self.train_dataset = train_dataset
+            self.val_dataset = val_dataset
+            self.test_dataset = test_dataset
         
         self.save_path = save_path
 
