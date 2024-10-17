@@ -24,6 +24,21 @@ def preprocess_amharic_news():
 
     return train_data, val_data, test_data
 
+def preprocess_amharic_tigrinya_news():
+    # both Amharic and Tigrinya news datasets loaded
+    am_dataset = load_dataset("masakhane/masakhanews", "amh")
+    tir_dataset = load_dataset("masakhane/masakhanews", "tir")
+
+    #make suree Amharic and Tigrinya datasets align for contrastive learning
+    def binarize_column(data):
+        data['label'] = 1 if data['label'] == 2 else 0
+        return data
+
+    am_dataset['train'] = am_dataset['train'].map(binarize_column)
+    tir_dataset['train'] = tir_dataset['train'].map(binarize_column)
+
+    return am_dataset, tir_dataset
+
 def tokenize_text(dataset, tokenizer, col_name = 'text'):
     
     def tokenize_function(data):
@@ -31,8 +46,6 @@ def tokenize_text(dataset, tokenizer, col_name = 'text'):
     dataset = dataset.map(tokenize_function, batched=True)
     dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'label', 'text'])
     return dataset
-
-
 
 def preprocess_distil_dataset(fname_eng, fname_tir, fname_labels, student_tokenizer, teacher_tokenizer, label_name = 'Category'):
     with open(fname_eng, 'r', encoding='utf-8') as f:

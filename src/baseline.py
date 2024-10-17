@@ -98,7 +98,8 @@ class NewsClassificationModel:
 
         # Configure matplotlib to use a font that supports Amharic characters
         # Replace '/path/to/NotoSansEthiopic-Regular.ttf' with the actual path to the font file
-        font_path = "C:/Users/Muhammad Sahal/Downloads/Noto_Sans_Ethiopic/static/NotoSansEthiopic-Regular.ttf"  # Update this path
+        # font_path = "C:/Users/Muhammad Sahal/Downloads/Noto_Sans_Ethiopic/static/NotoSansEthiopic-Regular.ttf"  # Update this path
+        font_path = "C:/Users/chris/Downloads/Noto_Sans_Ethiopic/static/NotoSansEthiopic-Regular.ttf"  # Update this path
         font_prop = font_manager.FontProperties(fname=font_path)
         matplotlib.rcParams['font.family'] = font_prop.get_name()
 

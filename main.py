@@ -2,18 +2,33 @@ from src.data_utils import preprocess_amharic_news, tokenize_text, preprocess_di
 from src.baseline import NewsClassificationModel
 from transformers import AutoTokenizer
 from src.distillation import DistillationNet
+from src.contrastive_learning import ContrastiveLearningModel
 
 if __name__ == "__main__":
+    # -----------------------------------Distillation----------------------------
+    # train_dataset, val_dataset, test_dataset = preprocess_amharic_news()
+
+    # model = NewsClassificationModel(model_name="fgaim/tielectra-small",
+    #                                 tokenizer_name="fgaim/tielectra-small",
+    #                                 train_dataset=train_dataset,
+    #                                 val_dataset=val_dataset,
+    #                                 test_dataset=test_dataset, checkpoint_path="./distillation")
+
+    # model.train(batch_size=10, num_epochs=30)
+    # model.evaluate([0])
+    
+    # -----------------------------------Contrastive----------------------------
+    
     train_dataset, val_dataset, test_dataset = preprocess_amharic_news()
 
-    model = NewsClassificationModel(model_name="fgaim/tielectra-small",
-                                    tokenizer_name="fgaim/tielectra-small",
-                                    train_dataset=train_dataset,
-                                    val_dataset=val_dataset,
-                                    test_dataset=test_dataset, checkpoint_path="./distillation")
+    model = ContrastiveLearningModel(model_name="fgaim/tielectra-small",
+                                    # tokenizer_name="fgaim/tielectra-small",
+                                    train_dataset=train_dataset)
+                                    # val_dataset=val_dataset,
+                                    # test_dataset=test_dataset, checkpoint_path="./contrastive")
 
-    model.train(batch_size=10, num_epochs=30)
-    model.evaluate([0])
+    model.train(lr=2e-5, n_epochs=10, temperature=0.1)
+    model.evaluate()
 
     # student_model_name = "fgaim/tielectra-small"
     # student_tokenizer = AutoTokenizer.from_pretrained(student_model_name)
