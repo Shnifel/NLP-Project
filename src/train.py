@@ -1,67 +1,63 @@
-from utils.data_utils import preprocess_amharic_news, tokenize_text, preprocess_distil_dataset, preprocess_contrastive_dataset
+from utils.data_utils import preprocess_tir_news, tokenize_text, preprocess_distil_dataset, preprocess_contrastive_dataset
 from models.baseline import NewsClassificationModel
 from transformers import AutoTokenizer
-from models.distillation import DistillationNet
 from models.contrastive_learning import ContrastiveNet
+import argparse
 import pandas as pd
 
-if __name__ == "__main__":
-    # -----------------------------------Baseline----------------------------
-    # train_dataset, val_dataset, test_dataset = preprocess_amharic_news()
+# Extract args for running baseline or the fine-tunings
+parser = argparse.ArgumentParser()
+parser.add_argument('--baseline', default=True, help='Run baseline model train or fine tuning with contrastive learning')
+parser.add_argument('--epochs', type=int, default=15, help='Number of epochs to train for')
+parser.add_argument('--batch_size', type=int, default=16, help='Batch size')
+parser.add_argument('--save_path', default='./checkpoints/baseline/', help='Directory to save checkpoints to')
+parser.add_argument('--learning-rate',type=float, default=.0005, help='Learning rate')
+parser.add_argument('--checkpoint-path',  type=float, default=None, help=('Checkpoint path to load from'))
+parser.add_argument('--model_name',  type=float, default="fgaim/tielectra-small", help=('Checkpoint path to load from'))
 
-    # model = NewsClassificationModel(model_name="fgaim/tielectra-small",
-    #                                 tokenizer_name="fgaim/tielectra-small",
-    #                                 train_dataset=train_dataset,
-    #                                 val_dataset=val_dataset,
-    #                                 test_dataset=test_dataset, checkpoint_path="./distillation") #checkpoint from distillation models
-
-    # model.train(batch_size=10, num_epochs=30)
-    # model.evaluate([0])
+def train_baseline(args):
     
+    train_dataset, val_dataset, test_dataset = preprocess_tir_news()
+
+    model = NewsClassificationModel(model_name= args.model_name,
+                                    tokenizer_name= args.model_name,
+                                    train_dataset=train_dataset,
+                                    val_dataset=val_dataset,
+                                    test_dataset=test_dataset, 
+                                    checkpoint_path= args.checkpoint_path,
+                                    save_path=args.save_path)
+
+    model.train(batch_size=args.batch_size, num_epochs=args.epochs)
+
+def train_contrastive_learning(args):
+
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name)
+    train_dataset, val_dataset, test_dataset = preprocess_contrastive_dataset("./data/amh.txt", 
+                                                                              "./data/tir.txt", 
+                                                                              "./data/metadata.tsv", 
+                                                                              tokenizer, label_name='Category')
     
-    # -------------------Distillation
-
-    # student_model_name = "fgaim/tielectra-small"
-    # student_tokenizer = AutoTokenizer.from_pretrained(student_model_name)
-    # student_tokenizer.model_max_length = 512
-
-    # teacher_model_name = "AyoubChLin/Albert-bbc-news"
-    # teacher_tokenizer = AutoTokenizer.from_pretrained(teacher_model_name)
-    # teacher_tokenizer.model_max_length = 512
-
-    # train, val, test = preprocess_distil_dataset("./data/eng.txt", "./data/tir.txt", "./data/metadata.tsv", 
-    #                                              student_tokenizer, teacher_tokenizer)
-    
-    # distil_net = DistillationNet(student_model_name, teacher_model_name, train, val, test)
-    # distil_net.distill_student(5e-3, 3, 2., 0.5)
-
-
-    # -------------------contrastive
-    model_name = "fgaim/tielectra-small"
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    train_dataset, val_dataset, test_dataset = preprocess_contrastive_dataset("./data/amh.txt", "./data/tir.txt", "./data/metadata.tsv", tokenizer, label_name='Category')
-    
-    for i in range(5):
-        print(f"Sample {i + 1}:")
-        print(f"Anchor Input IDs: {train_dataset[i]['tir_anchor_input_ids']}")
-        # print(f"Anchor Attention Mask: {train_dataset[i]['tir_anchor_attention_mask']}")
-        print(f"Positive Input IDs: {train_dataset[i]['tir_positive_input_ids']}")
-        # print(f"Positive Attention Mask: {train_dataset[i]['tir_positive_attention_mask']}")
-        print(f"Label: {train_dataset[i]['label']}")
-        print("-" * 50)
-
     
     contrastive_model = ContrastiveNet(
-        model_name=model_name,
+        model_name=args.model_name,
         train_dataset=train_dataset,
         val_dataset=val_dataset,
         test_dataset=test_dataset,
-        batch_size=8
+        batch_size=args.batch_size
     )
 
     # Train
-    train_losses = contrastive_model.train_contrastive(lr=2e-5, n_epochs=3)
+    contrastive_model.train_contrastive(lr=args.learning_rate, n_epochs=args.epochs)
 
-    # Evaluate the model
-    eval_results = contrastive_model.evaluate()
-    print(f"Validation Loss: {eval_results['validation_loss']:.4f}")
+
+if __name__ == "__main__":
+    args = parser.parse_args()
+    if args.baseline:
+        train_baseline(args)
+    else:
+        train_contrastive_learning(args)
+
+    
+    
+
+    

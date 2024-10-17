@@ -12,7 +12,7 @@ def train_valid_test_split(dataset: Dataset):
     
     return train_test['train'], val_test['train'], val_test['test']
 
-def preprocess_amharic_news():
+def preprocess_tir_news():
     dataset = load_dataset("masakhane/masakhanews", "tir")
 
     def binarize_column(data):
