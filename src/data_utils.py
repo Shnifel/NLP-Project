@@ -25,19 +25,21 @@ def preprocess_amharic_news():
     return train_data, val_data, test_data
 
 def preprocess_amharic_tigrinya_news():
-    # both Amharic and Tigrinya news datasets loaded
     am_dataset = load_dataset("masakhane/masakhanews", "amh")
     tir_dataset = load_dataset("masakhane/masakhanews", "tir")
 
-    #make suree Amharic and Tigrinya datasets align for contrastive learning
-    def binarize_column(data):
-        data['label'] = 1 if data['label'] == 2 else 0
-        return data
+    # Combine datasets, assuming they have similar structure
+    combined_dataset = {
+        'text': am_dataset['train']['text'] + tir_dataset['train']['text'],
+        'label': am_dataset['train']['label'] + tir_dataset['train']['label']
+    }
 
-    am_dataset['train'] = am_dataset['train'].map(binarize_column)
-    tir_dataset['train'] = tir_dataset['train'].map(binarize_column)
+    dataset = Dataset.from_dict(combined_dataset)
 
-    return am_dataset, tir_dataset
+    # Split into train, validation, and test sets
+    train_data, val_data, test_data = train_valid_test_split(dataset)
+
+    return train_data, val_data, test_data
 
 def tokenize_text(dataset, tokenizer, col_name = 'text'):
     
@@ -99,4 +101,25 @@ def preprocess_distil_dataset(fname_eng, fname_tir, fname_labels, student_tokeni
     
     dataset = dataset.map(tokenize_function_dual, batched=True)
     dataset.set_format(type='torch', columns=['tir_input_ids', 'tir_attention_mask','eng_input_ids', 'eng_attention_mask', 'label'])
+    return train_valid_test_split(dataset)
+
+
+def preprocess_for_contrastive(am_dataset, tir_dataset, tokenizer):
+    # Extract text from Amharic and Tigrinya datasets for contrastive pairs
+    am_tokenized = tokenize_text_for_contrastive(am_dataset['train'], tokenizer, 'text')
+    tir_tokenized = tokenize_text_for_contrastive(tir_dataset['train'], tokenizer, 'text')
+
+    # Combine them into a contrastive dataset with Amharic as anchor and Tigrinya as positive pair
+    contrastive_data = {
+        'anchor_text': am_tokenized['input_ids'],
+        'anchor_attention_mask': am_tokenized['attention_mask'],
+        'positive_text': tir_tokenized['input_ids'],
+        'positive_attention_mask': tir_tokenized['attention_mask'],
+        'label': am_tokenized['label']  # Assuming same labels for now
+    }
+    
+    dataset = Dataset.from_dict(contrastive_data)
+    dataset.set_format(type='torch', columns=['anchor_text', 'anchor_attention_mask', 'positive_text', 'positive_attention_mask', 'label'])
+
+    # Split into train, val, and test sets
     return train_valid_test_split(dataset)

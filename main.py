@@ -1,8 +1,8 @@
-from src.data_utils import preprocess_amharic_news, tokenize_text, preprocess_distil_dataset
+from src.data_utils import preprocess_amharic_news, tokenize_text, preprocess_distil_dataset, preprocess_for_contrastive, preprocess_amharic_tigrinya_news
 from src.baseline import NewsClassificationModel
 from transformers import AutoTokenizer
 from src.distillation import DistillationNet
-from src.contrastive_learning import ContrastiveLearningModel
+from src.contrastive_learning import ContrastiveNet
 
 if __name__ == "__main__":
     # -----------------------------------Distillation----------------------------
@@ -19,13 +19,15 @@ if __name__ == "__main__":
     
     # -----------------------------------Contrastive----------------------------
     
-    train_dataset, val_dataset, test_dataset = preprocess_amharic_news()
+    train_dataset, val_dataset, test_dataset = preprocess_amharic_tigrinya_news()
 
-    model = ContrastiveLearningModel(model_name="fgaim/tielectra-small",
-                                    # tokenizer_name="fgaim/tielectra-small",
-                                    train_dataset=train_dataset)
-                                    # val_dataset=val_dataset,
-                                    # test_dataset=test_dataset, checkpoint_path="./contrastive")
+    model = ContrastiveNet(
+        model_name="fgaim/tielectra-small",  # Model for both languages
+        train_dataset=train_dataset,         # Paired train dataset
+        val_dataset=val_dataset,             # Optional validation dataset
+        test_dataset=test_dataset,           # Optional test dataset
+        checkpoint_path="./contrastive"      # Path to save the trained model
+    )
 
     model.train(lr=2e-5, n_epochs=10, temperature=0.1)
     model.evaluate()

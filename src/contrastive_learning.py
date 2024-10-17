@@ -6,37 +6,42 @@ from torch.optim import AdamW
 from transformers import get_scheduler
 from tqdm.auto import tqdm
 import torch.nn.functional as F
+from src.data_utils import tokenize_text
+from transformers import AutoTokenizer
+from transformers import AutoModelForSequenceClassification, Trainer, TrainingArguments, EvalPrediction
+from peft import LoraConfig, TaskType, get_peft_model
+from peft.peft_model import PeftModel
+from src.evaluate_utils import compute_metrics
+import os
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, cohen_kappa_score
+import matplotlib.pyplot as plt
+import seaborn as sns
+import torch
+import numpy as np
+from src.baseline import NewsClassificationModel
+import torch
+from torch import nn
+from torch.utils.data import DataLoader
+from transformers import get_scheduler
+from tqdm.auto import tqdm
 
+class ContrastiveNet:
 
-class ContrastiveLearningModel:
+    def __init__(self, model_name, train_dataset, val_dataset, test_dataset, batch_size=32):
+        # Define a single model for both Amharic and Tigrinya text
+        self.model = NewsClassificationModel(model_name, model_name, train_dataset, val_dataset, test_dataset, 
+                                             tokenize=False, n_labels=None)
 
-    def __init__(self, model_name=None, train_dataset=None, batch_size=32):
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModel.from_pretrained(model_name)
         self.train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=batch_size)
+        self.val_dataloader = DataLoader(val_dataset, batch_size=batch_size)
+        self.test_dataloader = DataLoader(test_dataset, batch_size=batch_size)
 
-    def contrastive_loss(self, anchor, positive, negative, temperature=0.1):
-        # Normalize embeddings
-        anchor = F.normalize(anchor, dim=-1)
-        positive = F.normalize(positive, dim=-1)
-        negative = F.normalize(negative, dim=-1)
-        
-        # Compute cosine similarity
-        pos_sim = torch.matmul(anchor, positive.T) / temperature
-        neg_sim = torch.matmul(anchor, negative.T) / temperature
-
-        # Labels for contrastive loss: 1 for positive, 0 for negative
-        labels = torch.arange(anchor.size(0)).long().to(anchor.device)
-        
-        # Concatenate positive and negative similarities and calculate loss
-        logits = torch.cat([pos_sim, neg_sim], dim=1)
-        return F.cross_entropy(logits, labels)
-
-    def train(self, lr, n_epochs, temperature=0.1):
+    def train_contrastive(self, lr, n_epochs, margin=0.5):
         device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-        self.model.to(device)
-        optimizer = AdamW(self.model.parameters(), lr=lr)
-
+        self.model.model.to(device)
+        
+        # Optimizer and scheduler
+        optimizer = torch.optim.AdamW(self.model.model.parameters(), lr=lr)
         num_training_steps = n_epochs * len(self.train_dataloader)
         lr_scheduler = get_scheduler(
             "linear",
@@ -44,34 +49,49 @@ class ContrastiveLearningModel:
             num_warmup_steps=0,
             num_training_steps=num_training_steps
         )
+        
+        # Contrastive Loss (can use other loss funcs)
+        contrastive_loss = nn.CosineEmbeddingLoss(margin=margin)
 
+        # Training loop
         progress_bar = tqdm(range(num_training_steps))
+        self.model.model.train()
 
-        self.model.train()
         for epoch in range(n_epochs):
             for batch in self.train_dataloader:
-                # Tokenize text pairs (positive and negative examples)
-                anchor_input = self.tokenizer(batch['anchor_text'], return_tensors='pt', padding=True, truncation=True).to(device)
-                positive_input = self.tokenizer(batch['positive_text'], return_tensors='pt', padding=True, truncation=True).to(device)
-                negative_input = self.tokenizer(batch['negative_text'], return_tensors='pt', padding=True, truncation=True).to(device)
-                
-                # Get model embeddings
-                anchor_emb = self.model(**anchor_input).last_hidden_state[:, 0, :]  # CLS token
-                positive_emb = self.model(**positive_input).last_hidden_state[:, 0, :]
-                negative_emb = self.model(**negative_input).last_hidden_state[:, 0, :]
-                
-                # Compute contrastive loss
-                loss = self.contrastive_loss(anchor_emb, positive_emb, negative_emb, temperature)
+                # Move batch to device
+                batch = {k: v.to(device) for k, v in batch.items()}
+
+                # Forward pass: Amharic (anchor) and Tigrinya (positive)
+                amharic_outputs = self.model.model(
+                    input_ids=batch['anchor_text'],
+                    attention_mask=batch['anchor_attention_mask']
+                ).last_hidden_state.mean(dim=1)  # Take the mean of the hidden states as embeddings
+
+                tigrinya_outputs = self.model.model(
+                    input_ids=batch['positive_text'],
+                    attention_mask=batch['positive_attention_mask']
+                ).last_hidden_state.mean(dim=1)
+
+                # Targets for contrastive loss (1 for similar pairs)
+                targets = torch.ones(amharic_outputs.size(0)).to(device)
+
+                # Compute contrastive loss 
+                loss = contrastive_loss(amharic_outputs, tigrinya_outputs, targets)
 
                 # Backpropagation
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
                 lr_scheduler.step()
+
                 progress_bar.update(1)
 
             print(f"Epoch {epoch}, Loss: {loss.item()}")
 
+        # Save the trained model
+        self.model.model.save_pretrained('./contrastive_model')
+
     def evaluate(self):
-        
+        # TODO: evaluation embeddings
         pass
