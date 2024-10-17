@@ -3,6 +3,7 @@ from src.baseline import NewsClassificationModel
 from transformers import AutoTokenizer
 from src.distillation import DistillationNet
 from src.contrastive_learning import ContrastiveNet
+import pandas as pd
 
 if __name__ == "__main__":
     # -----------------------------------Baseline----------------------------
@@ -39,6 +40,15 @@ if __name__ == "__main__":
     model_name = "fgaim/tielectra-small"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     train_dataset, val_dataset, test_dataset = preprocess_contrastive_dataset("./data/amh.txt", "./data/tir.txt", "./data/metadata.tsv", tokenizer, label_name='Category')
+    
+    for i in range(5):
+        print(f"Sample {i + 1}:")
+        print(f"Anchor Input IDs: {train_dataset[i]['tir_anchor_input_ids']}")
+        # print(f"Anchor Attention Mask: {train_dataset[i]['tir_anchor_attention_mask']}")
+        print(f"Positive Input IDs: {train_dataset[i]['tir_positive_input_ids']}")
+        # print(f"Positive Attention Mask: {train_dataset[i]['tir_positive_attention_mask']}")
+        print(f"Label: {train_dataset[i]['label']}")
+        print("-" * 50)
 
     # model_name = model_name 
     # contrastive_net = ContrastiveNet(model_name, train_dataset, val_dataset, test_dataset)
