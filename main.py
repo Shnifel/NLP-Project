@@ -19,17 +19,19 @@ if __name__ == "__main__":
     
     # -----------------------------------Contrastive----------------------------
     
-    train_dataset, val_dataset, test_dataset = preprocess_amharic_tigrinya_news()
+    # train_dataset, val_dataset, test_dataset = preprocess_amharic_tigrinya_news()
 
-    model = ContrastiveNet(
-        model_name="fgaim/tielectra-small",  # Model for both languages
-        train_dataset=train_dataset,         # Paired train dataset
-        val_dataset=val_dataset,             # Optional validation dataset
-        test_dataset=test_dataset           # Optional test dataset
-    )
+    # model = ContrastiveNet(
+    #     model_name="fgaim/tielectra-small",  # Model for both languages
+    #     train_dataset=train_dataset,         # Paired train dataset
+    #     val_dataset=val_dataset,             # Optional validation dataset
+    #     test_dataset=test_dataset           # Optional test dataset
+    # )
 
-    model.train(lr=2e-5, n_epochs=10, temperature=0.1)
-    model.evaluate()
+    # model.train(lr=2e-5, n_epochs=10, temperature=0.1)
+    # model.evaluate()
+    
+    train, valid, test = preprocess_amharic_tigrinya_news()
 
     # student_model_name = "fgaim/tielectra-small"
     # student_tokenizer = AutoTokenizer.from_pretrained(student_model_name)

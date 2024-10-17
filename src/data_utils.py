@@ -26,8 +26,18 @@ def preprocess_amharic_news():
 
 def preprocess_amharic_tigrinya_news():
     
-    am_dataset = load_dataset("/home/vmuser/2024/semester 2/NLP/NLP-Project/data/amh.txt")
-    tir_dataset = load_dataset("/home/vmuser/2024/semester 2/NLP/NLP-Project/data/tir.txt")
+    am_dataset = load_dataset("masakhane/masakhanews", "amh")
+    tir_dataset = load_dataset("masakhane/masakhanews", "tir")
+    
+    # Convert to pandas DataFrames for easier inspection
+    # am_df = pd.DataFrame(am_dataset['train'])
+    # tir_df = pd.DataFrame(tir_dataset['train'])
+
+    # # Print out the heads of the datasets
+    # print("Amharic Dataset Head:")
+    # print(am_df.head())
+    # print("\nTigrinya Dataset Head:")
+    # print(tir_df.head())
 
     # Combine datasets, assuming they have similar structure
     combined_dataset = {
@@ -39,6 +49,10 @@ def preprocess_amharic_tigrinya_news():
 
     # Split into train, validation, and test sets
     train_data, val_data, test_data = train_valid_test_split(dataset)
+    
+    # print("\nTrain Data Size:", len(train_data))
+    # print("Validation Data Size:", len(val_data))
+    # print("Test Data Size:", len(test_data))
 
     return train_data, val_data, test_data
 
