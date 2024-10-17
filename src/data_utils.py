@@ -161,22 +161,13 @@ def preprocess_contrastive_dataset(fname_eng, fname_tir, fname_labels, tokenizer
     val_dataset = temp_dataset.train_test_split(test_size=1 - val_size)['train']
     test_dataset = temp_dataset.train_test_split(test_size=1 - val_size)['test']
 
-# returns tensors
-    # def tokenize_function_contrastive(examples):
-    #     return {
-    #         'tir_anchor_input_ids': tokenizer(examples['tir'], padding='max_length', truncation=True)['input_ids'],
-    #         'tir_anchor_attention_mask': tokenizer(examples['tir'], padding='max_length', truncation=True)['attention_mask'],
-    #         'tir_positive_input_ids': tokenizer(examples['tir'], padding='max_length', truncation=True)['input_ids'],  # Replace with actual positive samples
-    #         'tir_positive_attention_mask': tokenizer(examples['tir'], padding='max_length', truncation=True)['attention_mask'],  # Replace with actual positive samples
-    #         'label': examples['label']
-    #     }
     
     def tokenize_function_contrastive(examples):
         return {
             'tir_anchor_input_ids': tokenizer(examples['tir'], padding='max_length', truncation=True, return_tensors=None)['input_ids'],
             'tir_anchor_attention_mask': tokenizer(examples['tir'], padding='max_length', truncation=True, return_tensors=None)['attention_mask'],
-            'tir_positive_input_ids': tokenizer(examples['tir'], padding='max_length', truncation=True, return_tensors=None)['input_ids'],  # Replace with actual positive samples
-            'tir_positive_attention_mask': tokenizer(examples['tir'], padding='max_length', truncation=True, return_tensors=None)['attention_mask'],  # Replace with actual positive samples
+            'tir_positive_input_ids': tokenizer(examples['tir'], padding='max_length', truncation=True, return_tensors=None)['input_ids'],  #how to get positives?
+            'tir_positive_attention_mask': tokenizer(examples['tir'], padding='max_length', truncation=True, return_tensors=None)['attention_mask'],  
             'label': examples['label']
         }
     
