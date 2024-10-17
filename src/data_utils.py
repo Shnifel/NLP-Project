@@ -121,9 +121,9 @@ def preprocess_distil_dataset(fname_eng, fname_tir, fname_labels, student_tokeni
     return train_valid_test_split(dataset)
 
 
-def preprocess_contrastive_dataset(fname_eng, fname_tir, fname_labels, tokenizer, label_name='Category'):
-    with open(fname_eng, 'r', encoding='utf-8') as f:
-        english_lines = f.readlines()
+def preprocess_contrastive_dataset(fname_amh, fname_tir, fname_labels, tokenizer, label_name='Category'):
+    with open(fname_amh, 'r', encoding='utf-8') as f:
+        amharic_lines = f.readlines()
     with open(fname_tir, 'r', encoding='utf-8') as f:
         tigrinya_lines = f.readlines()
     
@@ -140,14 +140,40 @@ def preprocess_contrastive_dataset(fname_eng, fname_tir, fname_labels, tokenizer
 
     labels_df = labels_df[labels_df['category_encoded'].notna()]
     filtered_indices = labels_df.index
-    english_lines = [english_lines[i] for i in filtered_indices]
+    amharic_lines = [amharic_lines[i] for i in filtered_indices]
     tigrinya_lines = [tigrinya_lines[i] for i in filtered_indices]
 
+    # Create a dictionary to store texts by category
+    texts_by_category = {}
+    for i, category in enumerate(labels_df['category_encoded'].tolist()):
+        if category not in texts_by_category:
+            texts_by_category[category] = []
+        texts_by_category[category].append({
+            'amh': amharic_lines[i].strip(),
+            'tir': tigrinya_lines[i].strip(),
+            'index': i
+        })
+
+    # Create positive pairs within the same category
     data = {
-        'eng': [line.strip() for line in english_lines],
-        'tir': [line.strip() for line in tigrinya_lines],
-        'label': labels_df['category_encoded'].tolist()
+        'amh': [],
+        'tir': [],
+        'tir_positive': [],  # This will store the positive pair for Tigrinya
+        'label': []
     }
+
+    for category, texts in texts_by_category.items():
+        for i, text in enumerate(texts):
+            # Find a different text from the same category for the positive pair
+            positive_indices = [j for j in range(len(texts)) if j != i]
+            if positive_indices:  # If there are other texts in this category
+                positive_idx = random.choice(positive_indices)
+                positive_text = texts[positive_idx]
+                
+                data['amh'].append(text['amh'])
+                data['tir'].append(text['tir'])
+                data['tir_positive'].append(positive_text['tir'])
+                data['label'].append(category)
 
     contrastive_dataset = Dataset.from_dict(data)
 
@@ -156,18 +182,17 @@ def preprocess_contrastive_dataset(fname_eng, fname_tir, fname_labels, tokenizer
     train_dataset = contrastive_dataset.train_test_split(test_size=1 - train_size)['train']
     temp_dataset = contrastive_dataset.train_test_split(test_size=1 - train_size)['test']
 
-    # Further split temp_dataset into validation and test sets (e.g., 50-50 split)
+    # Further split temp_dataset into validation and test sets
     val_size = 0.5
     val_dataset = temp_dataset.train_test_split(test_size=1 - val_size)['train']
     test_dataset = temp_dataset.train_test_split(test_size=1 - val_size)['test']
-
     
     def tokenize_function_contrastive(examples):
         return {
             'tir_anchor_input_ids': tokenizer(examples['tir'], padding='max_length', truncation=True, return_tensors=None)['input_ids'],
             'tir_anchor_attention_mask': tokenizer(examples['tir'], padding='max_length', truncation=True, return_tensors=None)['attention_mask'],
-            'tir_positive_input_ids': tokenizer(examples['tir'], padding='max_length', truncation=True, return_tensors=None)['input_ids'],  #how to get positives?
-            'tir_positive_attention_mask': tokenizer(examples['tir'], padding='max_length', truncation=True, return_tensors=None)['attention_mask'],  
+            'tir_positive_input_ids': tokenizer(examples['tir_positive'], padding='max_length', truncation=True, return_tensors=None)['input_ids'],
+            'tir_positive_attention_mask': tokenizer(examples['tir_positive'], padding='max_length', truncation=True, return_tensors=None)['attention_mask'],
             'label': examples['label']
         }
     
