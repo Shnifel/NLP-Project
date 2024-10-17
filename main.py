@@ -50,11 +50,18 @@ if __name__ == "__main__":
         print(f"Label: {train_dataset[i]['label']}")
         print("-" * 50)
 
-    # model_name = model_name 
-    # contrastive_net = ContrastiveNet(model_name, train_dataset, val_dataset, test_dataset)
+    
+    contrastive_model = ContrastiveNet(
+        model_name=model_name,
+        train_dataset=train_dataset,
+        val_dataset=val_dataset,
+        test_dataset=test_dataset,
+        batch_size=8
+    )
 
-    # Train the model
-    # contrastive_net.train_contrastive(lr=5e-5, n_epochs=3)
+    # Train
+    train_losses = contrastive_model.train_contrastive(lr=2e-5, n_epochs=3)
 
     # Evaluate the model
-    # contrastive_net.evaluate()
+    eval_results = contrastive_model.evaluate()
+    print(f"Validation Loss: {eval_results['validation_loss']:.4f}")

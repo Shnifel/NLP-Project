@@ -1,5 +1,5 @@
 from src.data_utils import tokenize_text
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoModel
 from transformers import AutoModelForSequenceClassification, Trainer, TrainingArguments, EvalPrediction
 from peft import LoraConfig, TaskType, get_peft_model
 from peft.peft_model import PeftModel, PeftModelForSequenceClassification
@@ -12,8 +12,8 @@ import torch
 import numpy as np
 
 class NewsClassificationModel:
-    def __init__(self, model_name = None, tokenizer_name = None, train_dataset = None, val_dataset = None, test_dataset = None, 
-                 use_lora = True, save_path = "./baseline", checkpoint_path = None, tokenize = True, n_labels = 2):
+    def __init__(self, model_name=None, tokenizer_name=None, train_dataset=None, val_dataset=None, test_dataset=None, 
+                 use_lora=True, save_path="./baseline", checkpoint_path=None, tokenize=True, n_labels=5, is_contrastive=False):
 
         # Model and tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
@@ -23,30 +23,46 @@ class NewsClassificationModel:
             # Load the LoRA configuration
             peft_config = LoraConfig.from_pretrained(checkpoint_path)
             # Load the base model
-            self.model = AutoModelForSequenceClassification.from_pretrained(
-                peft_config.base_model_name_or_path, 
-                num_labels=n_labels,
-                ignore_mismatched_sizes = True
-            )
+            if is_contrastive:
+                self.model = AutoModel.from_pretrained(
+                    peft_config.base_model_name_or_path,
+                    ignore_mismatched_sizes=True
+                )
+            else:
+                self.model = AutoModelForSequenceClassification.from_pretrained(
+                    peft_config.base_model_name_or_path, 
+                    num_labels=n_labels,
+                    ignore_mismatched_sizes=True
+                )
 
-            print("HERE")
+            print("Loading checkpoint")
             # Load the model with LoRA weights
-            self.model = PeftModelForSequenceClassification.from_pretrained(self.model, checkpoint_path, strict= False, n_labels=2,
-                                                                            ignore_mismatched_sizes = True)
+            self.model = PeftModel.from_pretrained(self.model, checkpoint_path)
         else:
             # Load the base model
-            self.model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=n_labels, ignore_mismatched_sizes = True)
+            if is_contrastive:
+                self.model = AutoModel.from_pretrained(
+                    model_name,
+                    ignore_mismatched_sizes=True
+                )
+            else:
+                self.model = AutoModelForSequenceClassification.from_pretrained(
+                    model_name, 
+                    num_labels=n_labels,
+                    ignore_mismatched_sizes=True
+                )
+
         # Apply LoRA if specified
         if use_lora:
             config = LoraConfig(
-                task_type=TaskType.SEQ_CLS,
+                task_type=TaskType.FEATURE_EXTRACTION if is_contrastive else TaskType.SEQ_CLS,
                 r=8,
                 auto_mapping='auto',
                 lora_alpha=32,
                 target_modules=["query", "value"],
                 lora_dropout=0.01
             )
-            self.model = get_peft_model(self.model, config, "default")
+            self.model = get_peft_model(self.model, config)
         
         # Tokenize text
         if tokenize:
