@@ -24,6 +24,7 @@ class ContrastiveNet:
         )
 
         # Custom collate function for batching
+        # basically does padding (which might not be good) because of different sized tensors..
         def collate_fn(batch):
             # Find max length in the batch for anchor and positive
             max_len_anchor = max(len(item['tir_anchor_input_ids']) for item in batch)
@@ -81,6 +82,7 @@ class ContrastiveNet:
         # Add temperature parameter for InfoNCE loss
         self.temperature = 0.07
 
+    # infoNCE loss (might need to change this because its used in self-superised learning)
     def info_nce_loss(self, anchor_features, positive_features):
         # Normalize the features
         anchor_features = F.normalize(anchor_features, dim=1)
