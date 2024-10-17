@@ -47,6 +47,14 @@ def tokenize_text(dataset, tokenizer, col_name = 'text'):
     dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'label', 'text'])
     return dataset
 
+def tokenize_text_for_contrastive(dataset, tokenizer, text_col):
+    def tokenize_function(data):
+        return tokenizer(data[text_col], padding="max_length", truncation=True)
+    
+    dataset = dataset.map(tokenize_function, batched=True)
+    dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'label', text_col])
+    return dataset
+
 def preprocess_distil_dataset(fname_eng, fname_tir, fname_labels, student_tokenizer, teacher_tokenizer, label_name = 'Category'):
     with open(fname_eng, 'r', encoding='utf-8') as f:
         english_lines = f.readlines()
