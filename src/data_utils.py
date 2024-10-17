@@ -1,6 +1,8 @@
 import pandas as pd
 from datasets import Dataset, load_dataset
 from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
+import random
 
 def train_valid_test_split(dataset: Dataset):
 
@@ -119,22 +121,61 @@ def preprocess_distil_dataset(fname_eng, fname_tir, fname_labels, student_tokeni
     return train_valid_test_split(dataset)
 
 
-def preprocess_for_contrastive(am_dataset, tir_dataset, tokenizer):
-    # Extract text from Amharic and Tigrinya datasets for contrastive pairs
-    am_tokenized = tokenize_text_for_contrastive(am_dataset['train'], tokenizer, 'text')
-    tir_tokenized = tokenize_text_for_contrastive(tir_dataset['train'], tokenizer, 'text')
-
-    # Combine them into a contrastive dataset with Amharic as anchor and Tigrinya as positive pair
-    contrastive_data = {
-        'anchor_text': am_tokenized['input_ids'],
-        'anchor_attention_mask': am_tokenized['attention_mask'],
-        'positive_text': tir_tokenized['input_ids'],
-        'positive_attention_mask': tir_tokenized['attention_mask'],
-        'label': am_tokenized['label']  # Assuming same labels for now
-    }
+def preprocess_contrastive_dataset(fname_eng, fname_tir, fname_labels, tokenizer, label_name='Category'):
+    with open(fname_eng, 'r', encoding='utf-8') as f:
+        english_lines = f.readlines()
+    with open(fname_tir, 'r', encoding='utf-8') as f:
+        tigrinya_lines = f.readlines()
     
-    dataset = Dataset.from_dict(contrastive_data)
-    dataset.set_format(type='torch', columns=['anchor_text', 'anchor_attention_mask', 'positive_text', 'positive_attention_mask', 'label'])
+    labels_df = pd.read_csv(fname_labels, sep='\t')
+    
+    category_mapping = {
+        'Business and Economy': 1,
+        'Entertainment': 3,
+        'Politics': 4,
+        'Science and Technology': 0,
+        'Sport': 2
+    }
+    labels_df['category_encoded'] = labels_df[label_name].map(category_mapping)
 
-    # Split into train, val, and test sets
-    return train_valid_test_split(dataset)
+    labels_df = labels_df[labels_df['category_encoded'].notna()]
+    filtered_indices = labels_df.index
+    english_lines = [english_lines[i] for i in filtered_indices]
+    tigrinya_lines = [tigrinya_lines[i] for i in filtered_indices]
+
+    data = {
+        'eng': [line.strip() for line in english_lines],
+        'tir': [line.strip() for line in tigrinya_lines],
+        'label': labels_df['category_encoded'].tolist()
+    }
+
+    contrastive_dataset = Dataset.from_dict(data)
+
+    # Split the dataset into train and temp (validation + test) sets
+    train_size = 0.8
+    train_dataset = contrastive_dataset.train_test_split(test_size=1 - train_size)['train']
+    temp_dataset = contrastive_dataset.train_test_split(test_size=1 - train_size)['test']
+
+    # Further split temp_dataset into validation and test sets (e.g., 50-50 split)
+    val_size = 0.5
+    val_dataset = temp_dataset.train_test_split(test_size=1 - val_size)['train']
+    test_dataset = temp_dataset.train_test_split(test_size=1 - val_size)['test']
+
+    def tokenize_function_contrastive(examples):
+        return {
+            'tir_anchor_input_ids': tokenizer(examples['tir'], padding='max_length', truncation=True)['input_ids'],
+            'tir_anchor_attention_mask': tokenizer(examples['tir'], padding='max_length', truncation=True)['attention_mask'],
+            'tir_positive_input_ids': tokenizer(examples['tir'], padding='max_length', truncation=True)['input_ids'],  # Replace with actual positive samples
+            'tir_positive_attention_mask': tokenizer(examples['tir'], padding='max_length', truncation=True)['attention_mask'],  # Replace with actual positive samples
+            'label': examples['label']
+        }
+    
+    train_dataset = train_dataset.map(tokenize_function_contrastive, batched=True)
+    val_dataset = val_dataset.map(tokenize_function_contrastive, batched=True)
+    test_dataset = test_dataset.map(tokenize_function_contrastive, batched=True)
+
+    train_dataset.set_format(type='torch', columns=['tir_anchor_input_ids', 'tir_anchor_attention_mask', 'tir_positive_input_ids', 'tir_positive_attention_mask', 'label'])
+    val_dataset.set_format(type='torch', columns=['tir_anchor_input_ids', 'tir_anchor_attention_mask', 'tir_positive_input_ids', 'tir_positive_attention_mask', 'label'])
+    test_dataset.set_format(type='torch', columns=['tir_anchor_input_ids', 'tir_anchor_attention_mask', 'tir_positive_input_ids', 'tir_positive_attention_mask', 'label'])
+
+    return train_dataset, val_dataset, test_dataset

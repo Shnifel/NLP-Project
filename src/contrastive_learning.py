@@ -63,18 +63,18 @@ class ContrastiveNet:
                 batch = {k: v.to(device) for k, v in batch.items()}
 
                 # Forward pass: Amharic (anchor) and Tigrinya (positive)
-                amharic_outputs = self.model.model(
-                    input_ids=batch['anchor_text'],
-                    attention_mask=batch['anchor_attention_mask']
+                amharic_outputs = self.model(
+                    input_ids=batch['tir_anchor_input_ids'],
+                    attention_mask=batch['tir_anchor_attention_mask']
                 ).last_hidden_state.mean(dim=1)  # Take the mean of the hidden states as embeddings
 
-                tigrinya_outputs = self.model.model(
-                    input_ids=batch['positive_text'],
-                    attention_mask=batch['positive_attention_mask']
+                tigrinya_outputs = self.model(
+                    input_ids=batch['tir_positive_input_ids'],
+                    attention_mask=batch['tir_positive_attention_mask']
                 ).last_hidden_state.mean(dim=1)
 
                 # Targets for contrastive loss (1 for similar pairs)
-                targets = torch.ones(amharic_outputs.size(0)).to(device)
+                targets = torch.ones(amharic_outputs.size(0), device=device)
 
                 # Compute contrastive loss 
                 loss = contrastive_loss(amharic_outputs, tigrinya_outputs, targets)
@@ -90,8 +90,8 @@ class ContrastiveNet:
             print(f"Epoch {epoch}, Loss: {loss.item()}")
 
         # Save the trained model
-        self.model.model.save_pretrained('./contrastive_model')
+        self.model.save_pretrained('./contrastive_model')
 
     def evaluate(self):
-        # TODO: evaluation embeddings
+        
         pass
