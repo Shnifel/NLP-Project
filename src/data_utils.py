@@ -25,8 +25,9 @@ def preprocess_amharic_news():
     return train_data, val_data, test_data
 
 def preprocess_amharic_tigrinya_news():
-    am_dataset = load_dataset("masakhane/masakhanews", "amh")
-    tir_dataset = load_dataset("masakhane/masakhanews", "tir")
+    
+    am_dataset = load_dataset("/home/vmuser/2024/semester 2/NLP/NLP-Project/data/amh.txt")
+    tir_dataset = load_dataset("/home/vmuser/2024/semester 2/NLP/NLP-Project/data/tir.txt")
 
     # Combine datasets, assuming they have similar structure
     combined_dataset = {

@@ -25,8 +25,7 @@ if __name__ == "__main__":
         model_name="fgaim/tielectra-small",  # Model for both languages
         train_dataset=train_dataset,         # Paired train dataset
         val_dataset=val_dataset,             # Optional validation dataset
-        test_dataset=test_dataset,           # Optional test dataset
-        checkpoint_path="./contrastive"      # Path to save the trained model
+        test_dataset=test_dataset           # Optional test dataset
     )
 
     model.train(lr=2e-5, n_epochs=10, temperature=0.1)
