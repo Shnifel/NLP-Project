@@ -98,6 +98,9 @@ class NewsClassificationModel:
             logging_dir='./logs',
             logging_steps = 30,
             save_strategy="epoch",
+            load_best_model_at_end=True,
+            metric_for_best_model="f1",
+            save_total_limit=1,
             evaluation_strategy="epoch",
             run_name=run_name
         )

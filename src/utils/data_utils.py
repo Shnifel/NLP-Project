@@ -29,8 +29,25 @@ def preprocess_tir_news():
     return train_data, val_data, test_data
 
 def preprocess_amh_news():
-    dataset = load_dataset('rasyosef/amharic-news-category-classification')['train'].rename_column('article', 'text')
-    return train_valid_test_split(dataset)
+    #dataset = load_dataset('rasyosef/amharic-news-category-classification')['train'].rename_column('article', 'text')
+    #return train_valid_test_split(dataset)
+
+    dataset = load_dataset("masakhane/masakhanews", "amh")
+
+    remap_dict = {5: 0, 0: 1, 2: 2, 3: 3}
+
+    # Remap label so one of four labels
+    def remap_category(example):
+        example['label'] = remap_dict[example['label']]
+        return example
+
+    # Apply the remapping to the dataset
+    train_data = dataset['train'].map(remap_category)
+    val_data = dataset['validation'].map(remap_category)
+    test_data = dataset['test'].map(remap_category)
+
+    return train_data, val_data, test_data
+
 
 def preprocess_amharic_tigrinya_news():
     

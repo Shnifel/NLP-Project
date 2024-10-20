@@ -38,13 +38,13 @@ def train_amharic_finetuning(args):
     train_dataset, val_dataset, test_dataset = preprocess_amh_news()
 
     model = NewsClassificationModel(model_name= args.model_name,
-                                    tokenizer_name= args.model_name,
+                                    tokenizer_name= args.checkpoint_path,
                                     train_dataset=train_dataset,
                                     val_dataset=val_dataset,
                                     test_dataset=test_dataset, 
                                     checkpoint_path= args.checkpoint_path,
                                     save_path=args.save_path, 
-                                    n_labels=6, use_lora=False)
+                                    n_labels=4, use_lora=False)
 
     model.train(batch_size=args.batch_size, num_epochs=args.epochs,run_name=args.run_name)
     return model
@@ -57,6 +57,7 @@ def train_contrastive_learning(args):
                                                                               "./data/tir.txt", 
                                                                               "./data/metadata.tsv", 
                                                                               tokenizer, label_name='Category')
+    tokenizer.save_pretrained("./checkpoints/contrastive")
     
     
     contrastive_model = ContrastiveNet(
