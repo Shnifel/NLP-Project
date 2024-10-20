@@ -19,7 +19,7 @@ class ContrastiveNet:
             test_dataset=test_dataset,
             tokenize=False,
             n_labels=5,
-            use_lora=False,
+            use_lora= True,
             is_contrastive=True
         )
 
@@ -100,7 +100,7 @@ class ContrastiveNet:
         
         return loss
 
-    def train_contrastive(self, lr, n_epochs):
+    def train_contrastive(self, lr, n_epochs, save_path, run_name):
         device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.base_model.model.to(device)
         
@@ -163,7 +163,7 @@ class ContrastiveNet:
             print(f"Epoch {epoch + 1}/{n_epochs}, Average Loss: {avg_epoch_loss:.4f}")
 
         # Save the trained model
-        self.base_model.model.save_pretrained('./contrastive_model')
+        self.base_model.model.save_pretrained(save_path)
         return train_losses
 
     def evaluate(self):

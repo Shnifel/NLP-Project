@@ -5,7 +5,7 @@ import torch
 import matplotlib.pyplot as plt
 import seaborn as sns
 from transformers import Trainer
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, cohen_kappa_score
 import matplotlib.font_manager as font_manager
 from transformers import AutoModelForSequenceClassification, Trainer, TrainingArguments, EvalPrediction
 import matplotlib
@@ -17,8 +17,6 @@ accuracy_metric = evaluate.load("accuracy")
 precision_metric = evaluate.load("precision")
 recall_metric = evaluate.load("recall")
 f1_metric = evaluate.load("f1")
-cohens_kappa_metric =  evaluate.load("Cohen's Kappa")
-
 
 def compute_metrics(p):
     preds = np.argmax(p.predictions, axis=1)
@@ -29,14 +27,33 @@ def compute_metrics(p):
     precision = precision_metric.compute(predictions=preds, references=labels, average="binary")
     recall = recall_metric.compute(predictions=preds, references=labels, average="binary")
     f1 = f1_metric.compute(predictions=preds, references=labels, average="binary")
-    cohens_kappa = cohens_kappa_metric.compute(predictions=preds, references=labels, average="binary")
+    cohens_kappa = cohen_kappa_score(preds, labels)
     
     return {
         'accuracy': accuracy['accuracy'],
         'precision': precision['precision'],
         'recall': recall['recall'],
         'f1': f1['f1'],
-        'cohens_kappa': cohens_kappa["Cohen's Kappa"]
+        'cohens_kappa': cohens_kappa
+    }
+
+def compute_metrics_multiclass(p):
+    preds = np.argmax(p.predictions, axis=1)
+    labels = p.label_ids
+    
+    # Compute accuracy, precision, recall, and F1
+    accuracy = accuracy_metric.compute(predictions=preds, references=labels)
+    precision = precision_metric.compute(predictions=preds, references=labels, average="macro")
+    recall = recall_metric.compute(predictions=preds, references=labels, average="macro")
+    f1 = f1_metric.compute(predictions=preds, references=labels, average="macro")
+    cohens_kappa = cohen_kappa_score(preds, labels)
+    
+    return {
+        'accuracy': accuracy['accuracy'],
+        'precision': precision['precision'],
+        'recall': recall['recall'],
+        'f1': f1['f1'],
+        'cohens_kappa': cohens_kappa
     }
 
 
@@ -66,10 +83,10 @@ class ModelEvaluator:
         metrics = preds.metrics
 
         with open(os.path.join(self.save_path, "evaluation_metrics.txt"), "w", encoding='utf-8') as f:
-            f.write(metrics)
-
+            f.write(str(metrics))
+        
         # Compute confusion matrix
-        cm = confusion_matrix(preds.label_ids, preds.predictions)
+        cm = confusion_matrix(preds.label_ids, np.argmax(preds.predictions, axis = 1))
         
         # Save confusion matrix
         plt.figure(figsize=(8,6))

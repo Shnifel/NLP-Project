@@ -12,6 +12,8 @@ def train_valid_test_split(dataset: Dataset):
     
     return train_test['train'], val_test['train'], val_test['test']
 
+
+# Final dataset for binary classification
 def preprocess_tir_news():
     dataset = load_dataset("masakhane/masakhanews", "tir")
 
@@ -26,20 +28,14 @@ def preprocess_tir_news():
 
     return train_data, val_data, test_data
 
+def preprocess_amh_news():
+    dataset = load_dataset('rasyosef/amharic-news-category-classification')['train'].rename_column('article', 'text')
+    return train_valid_test_split(dataset)
+
 def preprocess_amharic_tigrinya_news():
     
     am_dataset = load_dataset("masakhane/masakhanews", "amh")
     tir_dataset = load_dataset("masakhane/masakhanews", "tir")
-    
-    # Convert to pandas DataFrames for easier inspection
-    # am_df = pd.DataFrame(am_dataset['train'])
-    # tir_df = pd.DataFrame(tir_dataset['train'])
-
-    # # Print out the heads of the datasets
-    # print("Amharic Dataset Head:")
-    # print(am_df.head())
-    # print("\nTigrinya Dataset Head:")
-    # print(tir_df.head())
 
     # Combine datasets, assuming they have similar structure
     combined_dataset = {
@@ -51,10 +47,6 @@ def preprocess_amharic_tigrinya_news():
 
     # Split into train, validation, and test sets
     train_data, val_data, test_data = train_valid_test_split(dataset)
-    
-    # print("\nTrain Data Size:", len(train_data))
-    # print("Validation Data Size:", len(val_data))
-    # print("Test Data Size:", len(test_data))
 
     return train_data, val_data, test_data
 
@@ -134,7 +126,8 @@ def preprocess_contrastive_dataset(fname_amh, fname_tir, fname_labels, tokenizer
         'Entertainment': 3,
         'Politics': 4,
         'Science and Technology': 0,
-        'Sport': 2
+        'Sport': 2,
+        'Health': 5
     }
     labels_df['category_encoded'] = labels_df[label_name].map(category_mapping)
 
@@ -162,35 +155,30 @@ def preprocess_contrastive_dataset(fname_amh, fname_tir, fname_labels, tokenizer
         'label': []
     }
 
+    n_samples = 40
     for category, texts in texts_by_category.items():
         for i, text in enumerate(texts):
             # Find a different text from the same category for the positive pair
             positive_indices = [j for j in range(len(texts)) if j != i]
             if positive_indices:  # If there are other texts in this category
-                positive_idx = random.choice(positive_indices)
-                positive_text = texts[positive_idx]
+                for _ in range(n_samples):
                 
-                data['amh'].append(text['amh'])
-                data['tir'].append(text['tir'])
-                data['tir_positive'].append(positive_text['tir'])
-                data['label'].append(category)
+                    positive_idx = random.choice(positive_indices)
+                    positive_text = texts[positive_idx]
+                    
+                    data['amh'].append(text['amh'])
+                    data['tir'].append(text['tir'])
+                    data['tir_positive'].append(positive_text['tir'])
+                    data['label'].append(category)
 
     contrastive_dataset = Dataset.from_dict(data)
 
-    # Split the dataset into train and temp (validation + test) sets
-    train_size = 0.8
-    train_dataset = contrastive_dataset.train_test_split(test_size=1 - train_size)['train']
-    temp_dataset = contrastive_dataset.train_test_split(test_size=1 - train_size)['test']
-
-    # Further split temp_dataset into validation and test sets
-    val_size = 0.5
-    val_dataset = temp_dataset.train_test_split(test_size=1 - val_size)['train']
-    test_dataset = temp_dataset.train_test_split(test_size=1 - val_size)['test']
+    train_dataset, val_dataset, test_dataset = train_valid_test_split(contrastive_dataset)
     
     def tokenize_function_contrastive(examples):
         return {
-            'tir_anchor_input_ids': tokenizer(examples['tir'], padding='max_length', truncation=True, return_tensors=None)['input_ids'],
-            'tir_anchor_attention_mask': tokenizer(examples['tir'], padding='max_length', truncation=True, return_tensors=None)['attention_mask'],
+            'tir_anchor_input_ids': tokenizer(examples['amh'], padding='max_length', truncation=True, return_tensors=None)['input_ids'],
+            'tir_anchor_attention_mask': tokenizer(examples['amh'], padding='max_length', truncation=True, return_tensors=None)['attention_mask'],
             'tir_positive_input_ids': tokenizer(examples['tir_positive'], padding='max_length', truncation=True, return_tensors=None)['input_ids'],
             'tir_positive_attention_mask': tokenizer(examples['tir_positive'], padding='max_length', truncation=True, return_tensors=None)['attention_mask'],
             'label': examples['label']
