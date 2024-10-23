@@ -15,7 +15,7 @@ def train_valid_test_split(dataset: Dataset):
 
 # Final dataset for binary classification
 def preprocess_tir_news():
-    dataset = load_dataset("masakhane/masakhanews", "tir")
+    dataset = load_dataset("masakhane/masakhanews", "amh")
 
     def binarize_column(data):
         data['label'] = 1 if data['label'] == 2 else 0 # Technology is 6

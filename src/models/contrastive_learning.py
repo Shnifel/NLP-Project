@@ -6,7 +6,12 @@ from torch.optim import AdamW
 from transformers import get_scheduler
 from tqdm.auto import tqdm
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
+from sklearn.manifold import TSNE
+import numpy as np
 from models.baseline import NewsClassificationModel
+from tqdm import tqdm
+import os
 
 class ContrastiveNet:
     def __init__(self, model_name, train_dataset, val_dataset, test_dataset, batch_size=32):
@@ -169,6 +174,7 @@ class ContrastiveNet:
     def evaluate(self):
         device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.base_model.model.eval()
+        self.base_model.model.to(device)
         
         val_losses = []
         
@@ -201,3 +207,78 @@ class ContrastiveNet:
         return {
             'validation_loss': avg_val_loss
         }
+    
+    def plot_tsne(self, stage = "before"):
+
+        device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        self.base_model.model.eval()
+        self.base_model.model.to(device)
+        
+        anchors = []
+        positives = []
+        labels = []
+        
+        with torch.no_grad():
+            for batch in tqdm(self.val_dataloader):
+                batch = {k: v.to(device) for k, v in batch.items()}
+                
+                # Get embeddings
+                anchor_outputs = self.base_model.model(
+                    input_ids=batch['tir_anchor_input_ids'],
+                    attention_mask=batch['tir_anchor_attention_mask'],
+                    output_hidden_states=True
+                )
+                
+                positive_outputs = self.base_model.model(
+                    input_ids=batch['tir_positive_input_ids'],
+                    attention_mask=batch['tir_positive_attention_mask'],
+                    output_hidden_states=True
+                )
+
+                # Use [CLS] token embedding
+                anchor_embeddings = anchor_outputs.hidden_states[-1][:, 0]
+                positive_embeddings = positive_outputs.hidden_states[-1][:, 0]
+
+
+                anchors.append(anchor_embeddings.cpu().numpy())
+                
+                positives.append(positive_embeddings.cpu().numpy())
+                labels.append(batch['label'].clone().cpu().numpy())
+
+
+        anchors = np.concatenate(anchors, axis=0)
+        positives = np.concatenate(positives, axis=0)
+        labels = np.concatenate(labels, axis=0)
+
+        print(anchors.shape)
+        print(labels.shape)
+        # Combine anchors and positives for t-SNE
+        all_embeddings = np.vstack([anchors, positives])
+
+        print(all_embeddings.shape)
+
+        # Apply t-SNE
+        tsne = TSNE(n_components=2, random_state=42)
+        reduced_embeddings = tsne.fit_transform(all_embeddings)
+
+        classes = ['Science and Technology', 'Business and Economy','Sport', 'Entertainment', 'Politics', 'Health' ]
+        
+        # Create a scatter plot with different shapes
+        fig, ax = plt.subplots()
+
+        # Plot anchors
+        ax.scatter(reduced_embeddings[:len(anchors), 0], reduced_embeddings[:len(anchors), 1], 
+                c=labels, marker='o', label='Anchors')
+
+        # Plot positives
+        scatter = ax.scatter(reduced_embeddings[len(anchors):, 0], reduced_embeddings[len(anchors):, 1], 
+                c=labels, marker='x', label='Positives')
+
+        # Add labels, legend, and title
+        ax.set_xlabel("t-SNE Dim 1")
+        ax.set_ylabel("t-SNE Dim 2")
+        ax.legend(handles=scatter.legend_elements()[0], labels=classes)
+
+        save_path = f"./results/contrastive/"
+        os.makedirs(save_path, exist_ok=True)
+        plt.savefig(f"{save_path}tsne_{stage}.pdf")

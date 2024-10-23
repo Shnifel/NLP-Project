@@ -1,5 +1,6 @@
 from utils.data_utils import preprocess_tir_news, tokenize_text, preprocess_amh_news, preprocess_contrastive_dataset
 from models.baseline import NewsClassificationModel
+from models.masked_lm import MaskedLMModel
 from transformers import AutoTokenizer
 from models.contrastive_learning import ContrastiveNet
 import argparse
@@ -27,7 +28,8 @@ def train_baseline(args):
                                     val_dataset=val_dataset,
                                     test_dataset=test_dataset, 
                                     checkpoint_path= args.checkpoint_path,
-                                    save_path=args.save_path)
+                                    save_path=args.save_path,
+                                    )
 
     model.train(batch_size=args.batch_size, num_epochs=args.epochs, run_name=args.run_name)
 
@@ -37,14 +39,14 @@ def train_amharic_finetuning(args):
     
     train_dataset, val_dataset, test_dataset = preprocess_amh_news()
 
-    model = NewsClassificationModel(model_name= args.model_name,
-                                    tokenizer_name= args.checkpoint_path,
+    model = MaskedLMModel(model_name= args.model_name,
+                                    tokenizer_name= args.model_name,
                                     train_dataset=train_dataset,
                                     val_dataset=val_dataset,
                                     test_dataset=test_dataset, 
                                     checkpoint_path= args.checkpoint_path,
                                     save_path=args.save_path, 
-                                    n_labels=4, use_lora=False)
+                                    use_lora=False)
 
     model.train(batch_size=args.batch_size, num_epochs=args.epochs,run_name=args.run_name)
     return model
@@ -56,8 +58,11 @@ def train_contrastive_learning(args):
     train_dataset, val_dataset, test_dataset = preprocess_contrastive_dataset("./data/amh.txt", 
                                                                               "./data/tir.txt", 
                                                                               "./data/metadata.tsv", 
-                                                                              tokenizer, label_name='Category')
-    tokenizer.save_pretrained("./checkpoints/contrastive")
+             
+                                                                     tokenizer, label_name='Category')
+    print(train_dataset[0])
+    print(tokenizer.convert_ids_to_tokens(train_dataset[0]['tir_positive_input_ids']))
+    tokenizer.save_pretrained(args.save_path)
     
     
     contrastive_model = ContrastiveNet(
@@ -68,9 +73,12 @@ def train_contrastive_learning(args):
         batch_size=args.batch_size
     )
 
+    #contrastive_model.plot_tsne()
+
     # Train
     contrastive_model.train_contrastive(lr=args.learning_rate, n_epochs=args.epochs, save_path=args.save_path, run_name=args.run_name)
 
+    contrastive_model.plot_tsne("after")
 
 if __name__ == "__main__":
     args = parser.parse_args()
