@@ -15,10 +15,10 @@ def train_valid_test_split(dataset: Dataset):
 
 # Final dataset for binary classification
 def preprocess_tir_news():
-    dataset = load_dataset("masakhane/masakhanews", "amh")
+    dataset = load_dataset("masakhane/masakhanews", "tir")
 
     def binarize_column(data):
-        data['label'] = 1 if data['label'] == 2 else 0 # Technology is 6
+        data['label'] = 1 if data['label'] == 1 else 0 # Entertainment is 1
         return data
 
     # Apply the binarization using map
@@ -29,24 +29,24 @@ def preprocess_tir_news():
     return train_data, val_data, test_data
 
 def preprocess_amh_news():
-    #dataset = load_dataset('rasyosef/amharic-news-category-classification')['train'].rename_column('article', 'text')
-    #return train_valid_test_split(dataset)
+    dataset = load_dataset('rasyosef/amharic-news-category-classification')['train'].rename_column('article', 'text')
+    return train_valid_test_split(dataset)
 
-    dataset = load_dataset("masakhane/masakhanews", "amh")
+    # dataset = load_dataset("masakhane/masakhanews", "amh")
 
-    remap_dict = {5: 0, 0: 1, 2: 2, 3: 3}
+    # remap_dict = {5: 0, 0: 1, 2: 2, 3: 3}
 
-    # Remap label so one of four labels
-    def remap_category(example):
-        example['label'] = remap_dict[example['label']]
-        return example
+    # # Remap label so one of four labels
+    # def remap_category(example):
+    #     example['label'] = remap_dict[example['label']]
+    #     return example
 
-    # Apply the remapping to the dataset
-    train_data = dataset['train'].map(remap_category)
-    val_data = dataset['validation'].map(remap_category)
-    test_data = dataset['test'].map(remap_category)
+    # # Apply the remapping to the dataset
+    # train_data = dataset['train'].map(remap_category)
+    # val_data = dataset['validation'].map(remap_category)
+    # test_data = dataset['test'].map(remap_category)
 
-    return train_data, val_data, test_data
+    # return train_data, val_data, test_data
 
 
 def preprocess_amharic_tigrinya_news():
@@ -75,13 +75,6 @@ def tokenize_text(dataset, tokenizer, col_name = 'text'):
     dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'label', 'text'])
     return dataset
 
-def tokenize_text_for_contrastive(dataset, tokenizer, text_col):
-    def tokenize_function(data):
-        return tokenizer(data[text_col], padding="max_length", truncation=True)
-    
-    dataset = dataset.map(tokenize_function, batched=True)
-    dataset.set_format(type='torch', columns=['input_ids', 'attention_mask', 'label', text_col])
-    return dataset
 
 def preprocess_distil_dataset(fname_eng, fname_tir, fname_labels, student_tokenizer, teacher_tokenizer, label_name = 'Category'):
     with open(fname_eng, 'r', encoding='utf-8') as f:
@@ -129,6 +122,42 @@ def preprocess_distil_dataset(fname_eng, fname_tir, fname_labels, student_tokeni
     dataset.set_format(type='torch', columns=['tir_input_ids', 'tir_attention_mask','eng_input_ids', 'eng_attention_mask', 'label'])
     return train_valid_test_split(dataset)
 
+def create_positive_pairs(split_dataset, n_samples=40):
+    data = {
+        'amh': [],
+        'tir': [],
+        'tir_positive': [],
+        'label': []
+    }
+
+    # Group texts by category
+    texts_by_category = {}
+    for i, category in enumerate(split_dataset['label']):
+        if category not in texts_by_category:
+            texts_by_category[category] = []
+        texts_by_category[category].append({
+            'amh': split_dataset['amh'][i].strip(),
+            'tir': split_dataset['tir'][i].strip(),
+            'index': i
+        })
+    
+    # Create positive pairs
+    for category, texts in texts_by_category.items():
+        for i, text in enumerate(texts):
+            # Find a different text from the same category for the positive pair
+            positive_indices = [j for j in range(len(texts)) if j != i]
+            if positive_indices:  # If there are other texts in this category
+                for _ in range(n_samples):
+                    positive_idx = random.choice(positive_indices)
+                    positive_text = texts[positive_idx]
+                    
+                    data['amh'].append(text['amh'])
+                    data['tir'].append(text['tir'])
+                    data['tir_positive'].append(positive_text['tir'])
+                    data['label'].append(category)
+    
+    return Dataset.from_dict(data)
+
 
 def preprocess_contrastive_dataset(fname_amh, fname_tir, fname_labels, tokenizer, label_name='Category'):
     with open(fname_amh, 'r', encoding='utf-8') as f:
@@ -153,44 +182,18 @@ def preprocess_contrastive_dataset(fname_amh, fname_tir, fname_labels, tokenizer
     amharic_lines = [amharic_lines[i] for i in filtered_indices]
     tigrinya_lines = [tigrinya_lines[i] for i in filtered_indices]
 
-    # Create a dictionary to store texts by category
-    texts_by_category = {}
-    for i, category in enumerate(labels_df['category_encoded'].tolist()):
-        if category not in texts_by_category:
-            texts_by_category[category] = []
-        texts_by_category[category].append({
-            'amh': amharic_lines[i].strip(),
-            'tir': tigrinya_lines[i].strip(),
-            'index': i
-        })
+    dataset = Dataset.from_dict({
+        'amh': amharic_lines,
+        'tir': tigrinya_lines,
+        'label': labels_df['category_encoded'].tolist()
+    })
+    
+    train_dataset, val_dataset, test_dataset = train_valid_test_split(dataset)
 
-    # Create positive pairs within the same category
-    data = {
-        'amh': [],
-        'tir': [],
-        'tir_positive': [],  # This will store the positive pair for Tigrinya
-        'label': []
-    }
+    train_dataset = create_positive_pairs(train_dataset)
+    val_dataset = create_positive_pairs(val_dataset)
+    test_dataset = create_positive_pairs(test_dataset)
 
-    n_samples = 40
-    for category, texts in texts_by_category.items():
-        for i, text in enumerate(texts):
-            # Find a different text from the same category for the positive pair
-            positive_indices = [j for j in range(len(texts)) if j != i]
-            if positive_indices:  # If there are other texts in this category
-                for _ in range(n_samples):
-                
-                    positive_idx = random.choice(positive_indices)
-                    positive_text = texts[positive_idx]
-                    
-                    data['amh'].append(text['amh'])
-                    data['tir'].append(text['tir'])
-                    data['tir_positive'].append(positive_text['tir'])
-                    data['label'].append(category)
-
-    contrastive_dataset = Dataset.from_dict(data)
-
-    train_dataset, val_dataset, test_dataset = train_valid_test_split(contrastive_dataset)
     
     def tokenize_function_contrastive(examples):
         return {
@@ -205,8 +208,64 @@ def preprocess_contrastive_dataset(fname_amh, fname_tir, fname_labels, tokenizer
     val_dataset = val_dataset.map(tokenize_function_contrastive, batched=True)
     test_dataset = test_dataset.map(tokenize_function_contrastive, batched=True)
 
-    train_dataset.set_format(type='torch', columns=['tir_anchor_input_ids', 'tir_anchor_attention_mask', 'tir_positive_input_ids', 'tir_positive_attention_mask', 'label'])
-    val_dataset.set_format(type='torch', columns=['tir_anchor_input_ids', 'tir_anchor_attention_mask', 'tir_positive_input_ids', 'tir_positive_attention_mask', 'label'])
-    test_dataset.set_format(type='torch', columns=['tir_anchor_input_ids', 'tir_anchor_attention_mask', 'tir_positive_input_ids', 'tir_positive_attention_mask', 'label'])
+    columns=['tir_anchor_input_ids', 'tir_anchor_attention_mask', 'tir_positive_input_ids', 'tir_positive_attention_mask', 'label']
+    train_dataset.set_format(type='torch', columns=columns)
+    val_dataset.set_format(type='torch', columns=columns)
+    test_dataset.set_format(type='torch', columns=columns)
+
+    return train_dataset, val_dataset, test_dataset
+
+def preprocess_eval_dataset(fname_amh, fname_tir, fname_eng, fname_labels, tokenizer, label_name='Category'):
+    with open(fname_amh, 'r', encoding='utf-8') as f:
+        amharic_lines = f.readlines()
+    with open(fname_tir, 'r', encoding='utf-8') as f:
+        tigrinya_lines = f.readlines()
+    with open(fname_eng, 'r', encoding='utf-8') as f:
+        eng_lines = f.readlines()
+    
+    labels_df = pd.read_csv(fname_labels, sep='\t')
+    
+    category_mapping = {
+        'Entertainment': 1
+    }
+    labels_df['category_encoded'] = labels_df[label_name].map(category_mapping)
+
+    labels_df = labels_df[labels_df['category_encoded'].notna()]
+    filtered_indices = labels_df.index
+    amharic_lines = [amharic_lines[i] for i in filtered_indices]
+    tigrinya_lines = [tigrinya_lines[i] for i in filtered_indices]
+    eng_lines = [eng_lines[i] for i in filtered_indices]
+
+
+    
+    data = {
+        'eng': [line.strip() for line in eng_lines],
+        'tir': [line.strip() for line in tigrinya_lines],
+        'amh': [line.strip() for line in amharic_lines],
+        'label': labels_df['category_encoded'].tolist()
+    }
+
+    dataset = Dataset.from_dict(data)
+
+    train_dataset, val_dataset, test_dataset = train_valid_test_split(dataset)
+    
+    def tokenize_function_contrastive(examples):
+        return {
+            'amh_input_ids': tokenizer(examples['amh'], padding='max_length', truncation=True, return_tensors=None)['input_ids'],
+            'amh_attention_mask': tokenizer(examples['amh'], padding='max_length', truncation=True, return_tensors=None)['attention_mask'],
+            'tir_input_ids': tokenizer(examples['tir'], padding='max_length', truncation=True, return_tensors=None)['input_ids'],
+            'tir_attention_mask': tokenizer(examples['tir'], padding='max_length', truncation=True, return_tensors=None)['attention_mask'],
+            'eng': examples['eng'],
+            'label': examples['label']
+        }
+    
+    train_dataset = train_dataset.map(tokenize_function_contrastive, batched=True)
+    val_dataset = val_dataset.map(tokenize_function_contrastive, batched=True)
+    test_dataset = test_dataset.map(tokenize_function_contrastive, batched=True)
+
+    columns = ['amh_input_ids', 'tir_input_ids', 'amh_attention_mask', 'tir_attention_mask', 'eng']
+    train_dataset.set_format(type='torch', columns=columns)
+    val_dataset.set_format(type='torch', columns=columns)
+    test_dataset.set_format(type='torch', columns=columns)
 
     return train_dataset, val_dataset, test_dataset

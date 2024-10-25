@@ -12,20 +12,23 @@ import numpy as np
 from models.baseline import NewsClassificationModel
 from tqdm import tqdm
 import os
+from copy import deepcopy
+import wandb
 
 class ContrastiveNet:
-    def __init__(self, model_name, train_dataset, val_dataset, test_dataset, batch_size=32):
+    def __init__(self, model_name, train_dataset, val_dataset, test_dataset, batch_size=32, checkpoint_path = None):
         # Initialize the base model without classification head
         self.base_model = NewsClassificationModel(
             model_name=model_name,
-            tokenizer_name=model_name,
+            tokenizer_name=model_name if checkpoint_path is None else checkpoint_path,
             train_dataset=train_dataset,
             val_dataset=val_dataset,
             test_dataset=test_dataset,
+            checkpoint_path=checkpoint_path,
             tokenize=False,
-            n_labels=5,
             use_lora= True,
-            is_contrastive=True
+            is_contrastive=True,
+            lora_checkpoint=True
         )
 
         # Custom collate function for batching
@@ -71,17 +74,17 @@ class ContrastiveNet:
             train_dataset, 
             shuffle=True, 
             batch_size=batch_size, 
-            collate_fn=collate_fn
+            # collate_fn=collate_fn
         )
         self.val_dataloader = DataLoader(
             val_dataset, 
             batch_size=batch_size, 
-            collate_fn=collate_fn
+            # collate_fn=collate_fn
         )
         self.test_dataloader = DataLoader(
             test_dataset, 
             batch_size=batch_size, 
-            collate_fn=collate_fn
+            # collate_fn=collate_fn
         )
         
         # Add temperature parameter for InfoNCE loss
@@ -106,6 +109,9 @@ class ContrastiveNet:
         return loss
 
     def train_contrastive(self, lr, n_epochs, save_path, run_name):
+        prev_val_loss = np.inf
+
+        wandb.init(project="huggingface")
         device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.base_model.model.to(device)
         
@@ -128,6 +134,8 @@ class ContrastiveNet:
         for epoch in range(n_epochs):
             epoch_loss = 0
             num_batches = 0
+            self.base_model.model.train()
+            print("HERE")
             
             for batch in self.train_dataloader:
                 # Move batch to device
@@ -167,8 +175,21 @@ class ContrastiveNet:
             train_losses.append(avg_epoch_loss)
             print(f"Epoch {epoch + 1}/{n_epochs}, Average Loss: {avg_epoch_loss:.4f}")
 
+            val_loss = self.evaluate()['validation_loss']
+
+            if val_loss < prev_val_loss:
+                prev_val_loss = val_loss
+                save_model = deepcopy(self.base_model.model)
+                save_model.merge_and_unload().save_pretrained(save_path)
+            
+            
+            wandb.log({
+                "InfoNCE Loss": avg_epoch_loss,
+                "InfoNCE Validation": val_loss,
+                "Epoch": epoch
+            })
+
         # Save the trained model
-        self.base_model.model.save_pretrained(save_path)
         return train_losses
 
     def evaluate(self):
@@ -219,7 +240,7 @@ class ContrastiveNet:
         labels = []
         
         with torch.no_grad():
-            for batch in tqdm(self.val_dataloader):
+            for batch in tqdm(self.test_dataloader):
                 batch = {k: v.to(device) for k, v in batch.items()}
                 
                 # Get embeddings
@@ -263,16 +284,17 @@ class ContrastiveNet:
 
         classes = ['Science and Technology', 'Business and Economy','Sport', 'Entertainment', 'Politics', 'Health' ]
         
+        
         # Create a scatter plot with different shapes
         fig, ax = plt.subplots()
 
         # Plot anchors
         ax.scatter(reduced_embeddings[:len(anchors), 0], reduced_embeddings[:len(anchors), 1], 
-                c=labels, marker='o', label='Anchors')
+                c=labels, cmap = 'viridis', marker='o', label='Anchors')
 
         # Plot positives
         scatter = ax.scatter(reduced_embeddings[len(anchors):, 0], reduced_embeddings[len(anchors):, 1], 
-                c=labels, marker='x', label='Positives')
+                c=labels, cmap = 'viridis', marker='x', label='Positives')
 
         # Add labels, legend, and title
         ax.set_xlabel("t-SNE Dim 1")

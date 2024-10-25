@@ -1,4 +1,4 @@
-from utils.data_utils import preprocess_tir_news, tokenize_text, preprocess_amh_news, preprocess_contrastive_dataset
+from utils.data_utils import preprocess_tir_news, tokenize_text, preprocess_amh_news, preprocess_contrastive_dataset, preprocess_eval_dataset
 from models.baseline import NewsClassificationModel
 from models.masked_lm import MaskedLMModel
 from transformers import AutoTokenizer
@@ -29,6 +29,7 @@ def train_baseline(args):
                                     test_dataset=test_dataset, 
                                     checkpoint_path= args.checkpoint_path,
                                     save_path=args.save_path,
+                                    lora_checkpoint=False
                                     )
 
     model.train(batch_size=args.batch_size, num_epochs=args.epochs, run_name=args.run_name)
@@ -46,7 +47,8 @@ def train_amharic_finetuning(args):
                                     test_dataset=test_dataset, 
                                     checkpoint_path= args.checkpoint_path,
                                     save_path=args.save_path, 
-                                    use_lora=False)
+                                    use_lora=False
+                                    )
 
     model.train(batch_size=args.batch_size, num_epochs=args.epochs,run_name=args.run_name)
     return model
@@ -70,21 +72,31 @@ def train_contrastive_learning(args):
         train_dataset=train_dataset,
         val_dataset=val_dataset,
         test_dataset=test_dataset,
-        batch_size=args.batch_size
+        batch_size=args.batch_size,
+        checkpoint_path=args.checkpoint_path
     )
 
-    #contrastive_model.plot_tsne()
+    contrastive_model.plot_tsne("after")
 
     # Train
-    contrastive_model.train_contrastive(lr=args.learning_rate, n_epochs=args.epochs, save_path=args.save_path, run_name=args.run_name)
+    # contrastive_model.train_contrastive(lr=args.learning_rate, n_epochs=args.epochs, save_path=args.save_path, run_name=args.run_name)
 
-    contrastive_model.plot_tsne("after")
+    # contrastive_model.plot_tsne("after")
 
 if __name__ == "__main__":
     args = parser.parse_args()
     if args.model_run == 'baseline':
         model = train_baseline(args)
-        ModelEvaluator(model.model, save_path=f'./results/{args.run_name}').evaluate_classification(model.test_dataset)
+        model_eval = ModelEvaluator(model.model, save_path=f'./results/{args.run_name}')
+        model_eval.evaluate_classification(model.test_dataset)
+        train_dataset, val_dataset, test_dataset = preprocess_eval_dataset("./data/amh.txt", 
+                                                                        "./data/tir.txt", 
+                                                                        "./data/eng.txt",
+                                                                         "./data/metadata.tsv",
+                                                                        model.tokenizer, 
+                                                                        label_name='Category')
+        model_eval.visualize_attention(test_dataset, [i for i in range(14)], model.tokenizer)
+        model_eval.highlight_text(model.test_dataset.filter(lambda x: x['label'] == 1), [i for i in range(14)], model.tokenizer)
     elif args.model_run == 'first-finetuning':
         train_amharic_finetuning(args)
     else:

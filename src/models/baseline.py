@@ -1,7 +1,8 @@
 from utils.data_utils import tokenize_text
 from transformers import AutoTokenizer, AutoModel
-from transformers import AutoModelForSequenceClassification, Trainer, TrainingArguments, EvalPrediction
+from transformers import AutoModelForSequenceClassification, Trainer, TrainingArguments
 from peft import LoraConfig, TaskType, get_peft_model
+from peft.auto import AutoPeftModelForSequenceClassification, AutoPeftModelForFeatureExtraction
 from peft.peft_model import PeftModel, PeftModelForSequenceClassification
 from utils.evaluate_utils import compute_metrics, compute_metrics_multiclass
 import matplotlib.pyplot as plt
@@ -36,13 +37,20 @@ class NewsClassificationModel:
 
                 print("Loading checkpoint")
                 # Load the model with LoRA weights
-                self.model = PeftModel.from_pretrained(self.model, checkpoint_path)
+                self.model = PeftModel.from_pretrained(self.model, checkpoint_path).merge_and_unload()
+                #self.model = AutoPeftModelForSequenceClassification.from_pretrained(checkpoint_path, is_trainable=True)
             else:
-                self.model = AutoModelForSequenceClassification.from_pretrained(
-                        checkpoint_path, 
-                        num_labels=n_labels,
+                if is_contrastive:
+                    self.model = AutoModel.from_pretrained(
+                        checkpoint_path,
                         ignore_mismatched_sizes=True
                     )
+                else:
+                    self.model = AutoModelForSequenceClassification.from_pretrained(
+                            checkpoint_path, 
+                            num_labels=n_labels,
+                            ignore_mismatched_sizes=True
+                        )
 
         else:
             # Load the base model

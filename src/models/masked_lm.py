@@ -101,7 +101,7 @@ class MaskedLMModel:
         )
 
         trainer.train()
-        eval_results = trainer.evaluate()
+        eval_results = trainer.predict(self.test_dataset)
         print(f"Perplexity: {math.exp(eval_results['eval_loss']):.2f}")
 
     def evaluate(self):

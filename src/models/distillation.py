@@ -38,7 +38,6 @@ class DistillationNet:
         self.student_model.to(device)
         self.teacher_model.eval()
 
-        # Optimizer and scheduler
         optimizer = torch.optim.AdamW(self.student_model.parameters(), lr=lr)
         num_training_steps = n_epochs * len(self.train_dataloader)
         lr_scheduler = get_scheduler(
@@ -48,18 +47,16 @@ class DistillationNet:
             num_training_steps=num_training_steps
         )
 
-        # Loss functions
         ce_loss = nn.CrossEntropyLoss()
         kl_loss = nn.KLDivLoss(reduction='batchmean')
 
-        # Training loop
+       
         progress_bar = tqdm(range(num_training_steps))
 
         self.student_model.train()
         for epoch in range(n_epochs):
             for batch in self.train_dataloader:
-                # Move batch to device
-
+    
                 batch = {k: v.to(device) for k, v in batch.items()}
                   
                 # Student forward pass on Tigrinya inputs

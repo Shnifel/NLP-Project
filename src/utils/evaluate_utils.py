@@ -7,10 +7,12 @@ import seaborn as sns
 from transformers import Trainer
 from sklearn.metrics import confusion_matrix, cohen_kappa_score
 import matplotlib.font_manager as font_manager
-from transformers import AutoModelForSequenceClassification, Trainer, TrainingArguments, EvalPrediction
+from transformers import Trainer
 import matplotlib
 import evaluate
 import numpy as np
+from utils.attention_utils import display_CLS_layers, display_token_to_token
+from utils.highlight_text import highlight_relevant_text
 
 # Load metrics
 accuracy_metric = evaluate.load("accuracy")
@@ -18,7 +20,7 @@ precision_metric = evaluate.load("precision")
 recall_metric = evaluate.load("recall")
 f1_metric = evaluate.load("f1")
 
-def compute_metrics(p):
+def compute_metrics(p): 
     preds = np.argmax(p.predictions, axis=1)
     labels = p.label_ids
     
@@ -64,6 +66,8 @@ class ModelEvaluator:
         self.model = model # Model to evaluate
         self.save_path = save_path # Path to save results to
         os.makedirs(self.save_path, exist_ok=True)
+        os.makedirs(os.path.join(self.save_path, "attention_vis"), exist_ok=True)
+        os.makedirs(os.path.join(self.save_path, "text_highlighted"), exist_ok=True)
 
         self.trainer = Trainer(
             model=self.model,
@@ -97,15 +101,12 @@ class ModelEvaluator:
         plt.savefig(os.path.join(self.save_path, "confusion_matrix.pdf"))
         plt.close()
 
-    def visualize_attention(self, test_dataset, selected_indices):
-         # For selected indices, visualize attention and highlight relevant text
+    def visualize_attention(self, test_dataset, selected_indices, tokenizer):
         for idx in selected_indices:
-            # Get input features
-            sample = test_dataset[idx]
 
-            # Convert to tensors and add batch dimension
-            input_ids = torch.tensor(sample['input_ids'], dtype=torch.long).unsqueeze(0).to(self.model.device)
-            attention_mask = torch.tensor(sample['attention_mask'], dtype=torch.long).unsqueeze(0).to(self.model.device)
+            article = test_dataset[idx]
+            input_ids = torch.tensor(article['tir_input_ids'], dtype=torch.long).unsqueeze(0).to(self.model.device)
+            attention_mask = torch.tensor(article['tir_attention_mask'], dtype=torch.long).unsqueeze(0).to(self.model.device)
 
             inputs = {'input_ids': input_ids, 'attention_mask': attention_mask}
 
@@ -114,70 +115,41 @@ class ModelEvaluator:
 
             attentions = outputs.attentions  # Tuple of (num_layers, batch_size, num_heads, seq_len, seq_len)
 
-            # Get tokens
-            tokens = self.tokenizer.convert_ids_to_tokens(sample['input_ids'])
+            tokens = tokenizer.convert_ids_to_tokens(article['tir_input_ids'])
 
-            # Clean up tokens (exclude CLS token)
-            tokens_cleaned = []
-            for token in tokens[1:]:
-                if token in ['[SEP]', '[PAD]']:
-                    tokens_cleaned.append(token)
-                elif token.startswith('##') or token.startswith('Ġ'):
-                    tokens_cleaned.append(token.replace('##', '').replace('Ġ', ''))
-                else:
-                    tokens_cleaned.append(token)
+            max_seq_len = 100
+            seq_len = min(len(tokens), max_seq_len, attention_mask.sum()) # excludes padding tokens
+            tokens = tokens[:seq_len]
 
-            # Limit sequence length
-            max_seq_len = 30
-            seq_len = min(len(tokens_cleaned), max_seq_len)
-            tokens_cleaned = tokens_cleaned[:seq_len]
+            display_CLS_layers(attentions, tokens, self.font_prop, 
+                               save_path=os.path.join(self.save_path, f"attention_vis/cls_vs_layers_{idx}.pdf"), 
+                               eng_trans = article['eng'] ,
+                               seq_len= seq_len)
+            
+            display_token_to_token(attentions, tokens, self.font_prop, 
+                    save_path=os.path.join(self.save_path, f"attention_vis/tokens_vs_tokens_{idx}.pdf"), 
+                    eng_trans = None ,
+                    seq_len= seq_len)
 
-            # Extract attention from last layer
-            last_layer_attention = attentions[-1][0]  # Shape: (num_heads, seq_len_full, seq_len_full)
 
-            # 1. Plot CLS Token Attention to Other Tokens
-            # CLS token attention to all tokens (including CLS token)
-            cls_attention_heads = last_layer_attention[:, 0, :]  # Shape: (num_heads, seq_len_full)
+    def highlight_text(self, test_dataset, selected_indices, tokenizer):
 
-            # Exclude CLS token from attention and tokens
-            cls_attention_heads = cls_attention_heads[:, 1:]  # Shape: (num_heads, seq_len_full -1)
-            cls_attention_heads = cls_attention_heads[:, :seq_len]  # Limit to max_seq_len tokens
+        for idx in selected_indices:
 
-            # Average over heads
-            cls_attention = cls_attention_heads.mean(dim=0)  # Shape: (seq_len,)
+            article = test_dataset[idx]
+            input_ids = torch.tensor(article['input_ids'], dtype=torch.long).unsqueeze(0).to(self.model.device)
+            attention_mask = torch.tensor(article['attention_mask'], dtype=torch.long).unsqueeze(0).to(self.model.device)
 
-            # Plot the CLS attention
-            plt.figure(figsize=(10, 4))
-            plt.bar(range(seq_len), cls_attention.detach().cpu().numpy())
-            plt.xticks(range(seq_len), tokens_cleaned, rotation=90, fontsize=8, fontproperties=self.font_prop)
-            plt.xlabel('Tokens', fontproperties=self.font_prop)
-            plt.ylabel('Attention Weight', fontproperties=self.font_prop)
-            plt.title(f'CLS Token Attention to Tokens (Last Layer)\nTest Index: {idx}', fontproperties=self.font_prop)
-            plt.tight_layout()
-            plt.savefig(os.path.join(self.save_path, f"cls_attention_test_idx_{idx}.png"))
-            plt.close()
+            inputs = {'input_ids': input_ids, 'attention_mask': attention_mask}
 
-            # 2. Plot Token-to-Token Attention Heatmap (excluding CLS token)
-            # Ignore the first token in the attention matrices
-            last_layer_attention = last_layer_attention[:, 1:, 1:]  # Shape: (num_heads, seq_len_full -1, seq_len_full -1)
-            last_layer_attention = last_layer_attention[:, :seq_len, :seq_len]  # Limit to max_seq_len tokens
+            with torch.no_grad():
+                outputs = self.model(**inputs, output_attentions=True)
 
-            # Average over heads
-            avg_attention = last_layer_attention.mean(dim=0)  # Shape: (seq_len, seq_len)
+            attentions = outputs.attentions  # Tuple of (num_layers, batch_size, num_heads, seq_len, seq_len)
 
-            # Plot heatmap of attention between tokens
-            plt.figure(figsize=(10, 8))
-            sns.heatmap(avg_attention.detach().cpu().numpy(), annot=False, cmap='viridis',
-                        xticklabels=tokens_cleaned, yticklabels=tokens_cleaned)
-            plt.xticks(rotation=90, fontsize=8, fontproperties=self.font_prop)
-            plt.yticks(fontsize=8, fontproperties=self.font_prop)
-            plt.xlabel('Key Tokens', fontproperties=self.font_prop)
-            plt.ylabel('Query Tokens', fontproperties=self.font_prop)
-            plt.title(f'Token-to-Token Attention (Averaged over Heads, Last Layer)\nTest Index: {idx}', fontproperties=self.font_prop)
-            plt.tight_layout()
-            plt.savefig(os.path.join(self.save_path, f"token_attention_heatmap_test_idx_{idx}.png"))
-            plt.close()
+            tokens = tokenizer.convert_ids_to_tokens(article['input_ids'])
 
-            # 3. Highlight relevant text based on token importance
-            # Compute token importance
-            token_importance = avg_attention.sum(dim=0).detach().cpu().numpy()  # Shape: (seq_len,)
+            seq_len = attention_mask.sum() # excludes padding tokens
+
+            highlight_relevant_text(tokens, attentions, os.path.join(self.save_path, "text_highlighted"), 
+                                    self.font_prop, seq_len, article['text'], index=idx)
